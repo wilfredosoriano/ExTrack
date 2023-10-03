@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "ExTrack",
+    "slug": "ExpenseTracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/extrack_icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/extrack_splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#151924"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/extrack_icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.wilfredo_s.ExpenseTracker"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fc07a736-2b3b-4ab8-95ab-857db261c2ee"
+      },
+      "backgroundFetch": {
+        "permissions": {
+          "android": "com.android.permission.BIND_JOB_SERVICE"
+        }
+      }
+    }
+  }
+}
