@@ -4,14 +4,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { FIREBASE_FIRESTORE } from '../../FirebaseConfig';
 import { addDoc, collection, query, doc, updateDoc, getDoc, where, onSnapshot } from "firebase/firestore";
 import { formatDistanceToNow } from "date-fns";
-import { LineChart } from "react-native-chart-kit";
+import { BarChart } from "react-native-chart-kit";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {heightPercentageToDP as hp} from 'react-native-responsive-screen';
-import * as BackgroundFetch from 'expo-background-fetch';
-import * as TaskManager from 'expo-task-manager';
 
 
 const HomeScreen = () => {
@@ -33,12 +31,10 @@ const HomeScreen = () => {
     const [isAllView, setIsAllView] = useState(true);
     const [isAllTotal, setIsAllTotal] = useState(0);
 
-    const [lastResetDate, setLastResetDate] = useState(null);
     const [isConnected, setIsConnected] = useState(true);
 
     const navigation = useNavigation();
 
-    const RESET_INTERVAL = 60000;
     const TRANSACTION_PLACEHOLDER = "Amount. Ex. 299";
     const TRANSACTION_TITLE_PLACEHOLDER = "Transaction Title";
     const ERROR_MESSAGE = "Please input all data first";
@@ -47,54 +43,47 @@ const HomeScreen = () => {
     const screenWidth = Dimensions.get('window').width;
     const screenHeight = Dimensions.get('window').height;
     const modalWidth = screenWidth * 0.9;
+    const chartWidthPercentage = 80;
+
+    const chartWidth = (chartWidthPercentage / 100) * screenWidth;
 
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedTime, setSelectedTime] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [chartData, setChartData] = useState([]);
 
-    const BACKGROUND_FETCH_TASK = 'background-fetch';
-    const RESET_HOUR = 8;
-    const RESET_MINUTE = 1; 
-
-    TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
-      const currentDate = new Date();
-      const currentDayOfWeek = currentDate.getDay();
-      const currentHour = currentDate.getHours();
-      const currentMinute = currentDate.getMinutes();
-
-      if (currentDayOfWeek === 1 && currentHour === RESET_HOUR && currentMinute === RESET_MINUTE) {
-        resetChart();
-      }
-
-      return BackgroundFetch.Result.NewData;
-    });
-
-    useEffect(() => {
-  
-      BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-        minimumInterval: RESET_INTERVAL / 1000, 
-        stopOnTerminate: false,
-        startOnBoot: true, 
-      });
-    }, []);
-
-    const checkTaskIsRunning = async () => {
-      const registeredTasks = await TaskManager.getRegisteredTasksAsync();
-      
-      const isRunning = registeredTasks.some(task => task.taskName === BACKGROUND_FETCH_TASK);
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
     
-      if (isRunning) {
-        console.log(`The ${BACKGROUND_FETCH_TASK} task is running.`);
-      } else {
-        console.log(`The ${BACKGROUND_FETCH_TASK} task is not running.`);
-      }
-    };
-
-    useEffect(() => {
-      checkTaskIsRunning();
-    }, []);
-
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec',
+    ];
+  
+    const monthsToDisplay = [];
+    for (let i = 0; i < 5; i++) {
+      const monthIndex = (currentMonth - i + 12) % 12;
+      monthsToDisplay.unshift(months[monthIndex]);
+    }
+    
+    const filteredData = transactions.filter((transaction) => {
+      const transactionMonth = transaction.fullTimestamp.getMonth();
+      const transactionYear = transaction.fullTimestamp.getFullYear();
+      return (
+        monthsToDisplay.includes(months[transactionMonth]) && transactionYear === currentYear
+      );
+    });
+    
+    const monthlyTotal = monthsToDisplay.map((monthLabel) => {
+      return filteredData.reduce((total, transaction) => {
+        if (months[transaction.fullTimestamp.getMonth()] === monthLabel) {
+          return total + transaction.amount;
+        }
+        return total;
+      }, 0);
+    });
   
     const onChangeDate = (event, selectedDate) => {
       setShowDatePicker(Platform.OS === 'ios');
@@ -117,12 +106,6 @@ const HomeScreen = () => {
     const showTimepicker = () => {
       setShowTimePicker(true);
     };
-
-
-    useEffect(() => {
-        
-      loadChartData();
-    }, []);
 
     useEffect(() => {
       const unsubscribe = NetInfo.addEventListener((state) => {
@@ -220,7 +203,6 @@ const HomeScreen = () => {
             setIsModalVisible(false);
             setCategoryModal(false);         
             
-            updateChartData(parseFloat(transactionAmount));
 
         } catch (error) {
             console.error('Error adding transaction: ', error);
@@ -326,6 +308,7 @@ const HomeScreen = () => {
             setIsAllTotal(allTotal);
 
             setTransactions(filteredTransactions);
+            setChartData(transactions);
 
         });
         return () => unsubscribe();
@@ -365,7 +348,6 @@ const HomeScreen = () => {
         }
     };
     
-      
       const updateBalance = async (currentBalance) => {
         try {
             const storedUsername = await AsyncStorage.getItem("username");
@@ -375,133 +357,8 @@ const HomeScreen = () => {
             console.error('Error updating user balance: ', error);
         }
       };
-
-      const [chartData, setChartData] = useState({
-        labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        datasets: [
-          {
-            data: [0, 0, 0, 0, 0, 0, 0],
-            color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-          },
-        ],
-        legend: ["Daily Spent"]
-      });    
-
-      const chartConfig = {
-        backgroundGradientFrom: "#151924", 
-        backgroundGradientTo: "#151924",
-        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-        strokeWidth: 2, 
-        fillShadowGradient: "#FAAC33", 
-        fillShadowGradientOpacity: 1,
-      };
-
-      const updateChartData = async (amount) => {
-        const currentDate = new Date();
-        const currentDayOfWeek = currentDate.getDay();
-        
-        const selectedDateTime = new Date(
-          selectedDate.getFullYear(),
-          selectedDate.getMonth(),
-          selectedDate.getDate()
-        );
-
-        const startOfWeek = new Date(currentDate);
-        startOfWeek.setDate(currentDate.getDate() - currentDayOfWeek);
-        const endOfWeek = new Date(currentDate);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-      
-        if (
-          selectedDateTime >= startOfWeek && 
-          selectedDateTime <= endOfWeek
-        ) {
-        
-        const newChartData = { ...chartData };
-        const selectedDayOfWeek = selectedDate.getDay(); 
-        newChartData.datasets[0].data[selectedDayOfWeek] += amount;
-      
-        setChartData(newChartData);
-      
-            try {
-            await AsyncStorage.setItem('chartData', JSON.stringify(chartData));
-            } catch (error) {
-            console.error('Error storing chart data:', error);
-            }
-        }
-      };
-      
-      
-      const loadChartData = async () => {
-        try {
-          const savedChartData = await AsyncStorage.getItem('chartData');
-          if (savedChartData) {
-            setChartData(JSON.parse(savedChartData));
-          }
-        } catch (error) {
-          console.error('Error loading chart data:', error);
-        }
-      };      
-
-      //reset chart every moday at 8:01 am
-      useEffect(() => {
-        const loadLastResetDate = async () => {
-          try {
-            const savedDate = await AsyncStorage.getItem('lastResetDate');
-            if (savedDate) {
-              setLastResetDate(new Date(savedDate));
-            }
-          } catch (error) {
-            console.error('Error loading last reset date:', error);
-          }
-        };
-
-        loadLastResetDate();
-      }, []);
-
-    
-      useEffect(() => {
-        const resetInterval = setInterval(checkResetTime, RESET_INTERVAL);
-      
-        return () => clearInterval(resetInterval);
-      }, []);
-
-      const checkResetTime = () => {
-        const currentDate = new Date();
-        const currentDayOfWeek = currentDate.getDay();
-        const currentHour = currentDate.getHours();
-        const currentMinute = currentDate.getMinutes();
+           
   
-        if (currentDayOfWeek === 1 && currentHour === 8 && currentMinute === 1) {
-          resetChart();
-        }
-      };
-
-      const resetChart = async () => {
-        const newChartData = {
-          labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-          datasets: [
-            {
-              data: [0, 0, 0, 0, 0, 0, 0],
-              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-            },
-          ],
-          legend: ["Daily Spent"]
-        };
-      
-        setChartData(newChartData);
-      
-        const currentDate = new Date();
-        setLastResetDate(currentDate);                                            
-      
-        try {
-          await AsyncStorage.setItem('lastResetDate', currentDate.toString());
-    
-          await AsyncStorage.setItem('chartData', JSON.stringify(newChartData));
-        } catch (error) {
-          console.error('Error storing last reset date or chart data:', error);
-        }
-      };     
-
     return(
         <SafeAreaView style={styles.container}>
             {isConnected ? (
@@ -536,12 +393,37 @@ const HomeScreen = () => {
                             </TouchableOpacity>
                         </View>
                         <View style={styles.midCard}>
-                            <LineChart
-                                data={chartData}
-                                width={screenWidth * 0.8}
-                                height={screenHeight * 0.3}
-                                chartConfig={chartConfig}
-                                bezier />
+                        <BarChart
+                          data={{
+                            labels: monthsToDisplay,
+                            datasets: [
+                              {
+                                data: monthlyTotal,
+                              },
+                            ],
+                          }}
+                          width={chartWidth}
+                          height={300}
+                          yAxisLabel="₱"
+                          chartConfig={{
+                            backgroundGradientFrom: '#151924',
+                            backgroundGradientTo: '#151924',
+                            fillShadowGradient: '#FAAC33',
+                            fillShadowGradientOpacity: 1,
+                            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                            formatYLabel: (value) => {
+                              if (value >= 1000) {
+                                return (value / 1000).toFixed(1) + 'k';
+                              } else {
+                                return value.toString();
+                              }
+                            },
+                          }}
+                          style={{
+                            marginVertical: 8,
+                            borderRadius: 16,
+                          }}
+                        />
                         </View>
                     </View><View style={{
                           marginHorizontal: screenWidth * 0.05,

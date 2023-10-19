@@ -298,7 +298,7 @@ const CategoryScreen = () => {
                     ]}>
                     <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
                         <Text style={{color: '#FAAC33', fontSize: 20, fontFamily: 'Open-Sans-Bold'}}>{categoryName}</Text>
-                        <TouchableOpacity onPress={closeModal}>
+                        <TouchableOpacity onPress={closeModal} style={{backgroundColor: '#FAAC33', elevation: 10, borderRadius: 30, padding: 3, paddingHorizontal: 4}}>
                             <Ionicons name="close-outline" size={24} color="white"/>
                         </TouchableOpacity>
                     </View>
